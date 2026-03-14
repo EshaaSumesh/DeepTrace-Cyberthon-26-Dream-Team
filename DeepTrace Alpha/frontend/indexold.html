@@ -1,0 +1,676 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>DeepTrace — Deepfake Trust & Attribution System</title>
+<style>
+:root{--bg0:#070c18;--bg1:#0d1424;--bg2:#131b30;--bg3:#1c2540;
+  --accent:#00d4ff;--glow:rgba(0,212,255,.18);
+  --text0:#e8f0fe;--text1:#94a3b8;--text2:#64748b;
+  --border:rgba(0,212,255,.15);--border2:rgba(0,212,255,.08);
+  --low:#22c55e;--medium:#f59e0b;--high:#f97316;--critical:#ef4444;--r:10px}
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+body{background:var(--bg0);color:var(--text0);font-family:'Segoe UI',system-ui,sans-serif;min-height:100vh;overflow-x:hidden}
+body::before{content:'';position:fixed;inset:0;z-index:0;
+  background-image:linear-gradient(rgba(0,212,255,.03)1px,transparent 1px),linear-gradient(90deg,rgba(0,212,255,.03)1px,transparent 1px);
+  background-size:40px 40px;pointer-events:none}
+
+nav{position:sticky;top:0;z-index:100;background:rgba(7,12,24,.9);backdrop-filter:blur(12px);
+  border-bottom:1px solid var(--border);padding:0 2rem;display:flex;align-items:center;gap:1rem;height:62px}
+.logo{display:flex;align-items:center;gap:.6rem;font-size:1.35rem;font-weight:800;
+  color:var(--accent);text-shadow:0 0 20px var(--accent)}
+.logo svg{width:26px;height:26px}
+.badge-ps{background:rgba(124,58,237,.2);border:1px solid rgba(124,58,237,.4);color:#a78bfa;
+  font-size:.67rem;padding:.2rem .55rem;border-radius:20px;letter-spacing:.06em;font-weight:600}
+.nav-r{margin-left:auto;font-size:.7rem;color:var(--text2);letter-spacing:.07em}
+
+main{position:relative;z-index:1;max-width:1100px;margin:0 auto;padding:2rem 1.5rem 4rem}
+
+.hero{text-align:center;padding:.3rem 0 1.2rem}
+.hero-title{font-size:clamp(1.5rem,4vw,2.6rem);font-weight:800;
+  background:linear-gradient(135deg,var(--accent)30%,#a78bfa 80%);
+  -webkit-background-clip:text;-webkit-text-fill-color:transparent;margin-bottom:.35rem}
+.hero-sub{color:var(--text1);font-size:.9rem;max-width:500px;margin-inline:auto}
+
+.tab-bar{display:flex;gap:.3rem;background:var(--bg2);border:1px solid var(--border);
+  border-radius:var(--r);padding:.3rem;margin-bottom:1.2rem}
+.tab-btn{flex:1;padding:.5rem .4rem;border:none;background:transparent;color:var(--text1);
+  font-size:.8rem;font-weight:600;border-radius:8px;cursor:pointer;transition:.2s;
+  display:flex;align-items:center;justify-content:center;gap:.35rem;white-space:nowrap}
+.tab-btn:hover{color:var(--text0);background:var(--bg3)}
+.tab-btn.active{background:rgba(0,212,255,.12);color:var(--accent);
+  border:1px solid rgba(0,212,255,.25)}
+.tab-panel{display:none}.tab-panel.active{display:block}
+
+#dropzone,#batch-dz{border:2px dashed var(--border);border-radius:var(--r);
+  padding:2.8rem 2rem;cursor:pointer;transition:.25s;background:var(--bg1);text-align:center}
+#dropzone:hover,#batch-dz:hover,.drag-active{border-color:var(--accent)!important;background:rgba(0,212,255,.04)!important}
+#file-input,#batch-input{display:none}
+.dz-icon{font-size:2.6rem;margin-bottom:.6rem;display:block}
+.dz-text{color:var(--text1);font-size:.95rem}
+.dz-hint{color:var(--text2);font-size:.77rem;margin-top:.3rem}
+
+.card{background:var(--bg1);border:1px solid var(--border);border-radius:var(--r);
+  padding:1.2rem;margin-bottom:1.1rem}
+.card-title{font-size:.68rem;text-transform:uppercase;letter-spacing:.12em;
+  color:var(--text2);margin-bottom:.9rem}
+
+.url-input{width:100%;background:var(--bg2);border:1px solid var(--border);border-radius:8px;
+  padding:.75rem 1rem;color:var(--text0);font-size:.88rem;outline:none;transition:.2s}
+.url-input:focus{border-color:var(--accent);box-shadow:0 0 0 3px rgba(0,212,255,.1)}
+.url-input::placeholder{color:var(--text2)}
+.url-hint{color:var(--text2);font-size:.74rem;margin:.4rem 0}
+
+.btn-p{background:linear-gradient(135deg,var(--accent),#0ea5e9);color:#070c18;
+  border:none;border-radius:8px;padding:.6rem 1.6rem;font-size:.88rem;font-weight:700;
+  cursor:pointer;transition:.2s;display:inline-flex;align-items:center;gap:.4rem;margin-top:.6rem}
+.btn-p:hover{opacity:.9;transform:translateY(-1px)}
+.btn-p:disabled{opacity:.4;cursor:not-allowed;transform:none}
+
+/* webcam */
+.wc-wrap{display:flex;flex-direction:column;align-items:center;gap:.9rem}
+#wc-preview{width:100%;max-width:460px;border-radius:var(--r);border:1px solid var(--border);
+  background:var(--bg2);aspect-ratio:16/9;object-fit:cover}
+.wc-ctrl{display:flex;gap:.7rem;flex-wrap:wrap;justify-content:center}
+.btn-s{background:var(--bg2);border:1px solid var(--border);color:var(--text1);
+  border-radius:8px;padding:.5rem 1rem;font-size:.83rem;cursor:pointer;transition:.2s}
+.btn-s:hover{border-color:var(--accent);color:var(--accent)}
+.btn-s:disabled{opacity:.35;cursor:not-allowed}
+.btn-s.rec{background:rgba(239,68,68,.15);border-color:var(--critical);color:var(--critical);
+  animation:pb 1s ease-in-out infinite}
+@keyframes pb{0%,100%{box-shadow:0 0 0 0 rgba(239,68,68,.4)}50%{box-shadow:0 0 0 4px transparent}}
+.wc-st{font-size:.8rem;color:var(--text2)}
+.wc-st.on{color:var(--critical)}
+
+/* batch */
+.bq-item{background:var(--bg2);border:1px solid var(--border);border-radius:8px;
+  padding:.55rem .9rem;display:flex;align-items:center;gap:.5rem;font-size:.83rem;margin-top:.4rem}
+.bq-name{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.bq-size{color:var(--text2);font-size:.74rem;white-space:nowrap}
+.bq-rm{background:none;border:none;color:var(--text2);cursor:pointer;font-size:.85rem;padding:0 .2rem}
+.bq-rm:hover{color:var(--critical)}
+.batch-ctrl{display:flex;justify-content:space-between;align-items:center;margin-top:.9rem}
+
+/* loading */
+#loading{display:none;text-align:center;padding:2.5rem 1rem}
+.spinner{width:56px;height:56px;margin:0 auto 1.2rem;border:3px solid var(--bg3);
+  border-top-color:var(--accent);border-radius:50%;animation:spin .9s linear infinite}
+@keyframes spin{to{transform:rotate(360deg)}}
+.ld-label{color:var(--accent);font-weight:700;font-size:.97rem;margin-bottom:.7rem}
+.step{color:var(--text2);font-size:.8rem;margin:.2rem 0;transition:.4s}
+.step::before{content:'◦ '}.step.active{color:var(--accent)}.step.active::before{content:'▸ '}
+.step.done{color:var(--low);opacity:.65}.step.done::before{content:'✓ '}
+
+#error-box{display:none;background:rgba(239,68,68,.08);border:1px solid rgba(239,68,68,.3);
+  border-radius:var(--r);padding:.9rem 1.3rem;color:#fca5a5;font-size:.87rem;margin-top:.9rem}
+
+/* results */
+#results{display:none}
+.rtop{display:flex;justify-content:space-between;align-items:center;margin-bottom:1.3rem;flex-wrap:wrap;gap:.5rem}
+.btn-r{background:transparent;border:1px solid var(--border);color:var(--text1);
+  padding:.45rem 1.1rem;border-radius:8px;cursor:pointer;font-size:.81rem;transition:.2s}
+.btn-r:hover{border-color:var(--accent);color:var(--accent)}
+.btn-pdf{background:rgba(124,58,237,.15);border:1px solid rgba(124,58,237,.35);color:#a78bfa;
+  padding:.45rem 1.1rem;border-radius:8px;cursor:pointer;font-size:.81rem;transition:.2s;
+  display:inline-flex;align-items:center;gap:.35rem}
+.btn-pdf:hover{background:rgba(124,58,237,.25)}
+.btn-pdf:disabled{opacity:.4;cursor:not-allowed}
+
+.gauge-sec{display:grid;grid-template-columns:250px 1fr;gap:1.1rem;margin-bottom:1.1rem;align-items:center}
+@media(max-width:650px){.gauge-sec{grid-template-columns:1fr}}
+.gauge-wrap{background:var(--bg1);border:1px solid var(--border);border-radius:var(--r);
+  padding:1.4rem 1.1rem;text-align:center;position:relative;overflow:hidden}
+.gauge-wrap::before{content:'';position:absolute;inset:0;
+  background:radial-gradient(ellipse at 50% 110%,var(--glow)0%,transparent 65%);pointer-events:none}
+.g-label{font-size:.68rem;text-transform:uppercase;letter-spacing:.12em;color:var(--text2);margin-bottom:.7rem}
+.g-svg-w{position:relative;width:154px;height:84px;margin:0 auto}
+.g-track{fill:none;stroke:var(--bg3);stroke-width:14;stroke-linecap:round}
+.g-fill{fill:none;stroke-width:14;stroke-linecap:round;stroke-dasharray:283;stroke-dashoffset:283;
+  transition:stroke-dashoffset 1.4s cubic-bezier(.34,1.56,.64,1),stroke 1s ease}
+.g-val{position:absolute;bottom:0;left:50%;transform:translateX(-50%);
+  font-size:2.2rem;font-weight:900;line-height:1;font-variant-numeric:tabular-nums}
+.g-pct{font-size:.95rem;font-weight:400;color:var(--text1)}
+.risk-badge{display:inline-block;padding:.28rem .9rem;border-radius:30px;
+  font-size:.78rem;font-weight:700;letter-spacing:.1em;margin-top:.7rem;border:1px solid currentColor}
+
+.info-p{background:var(--bg1);border:1px solid var(--border);border-radius:var(--r);
+  padding:1.2rem;display:flex;flex-direction:column;gap:.65rem}
+.ir{display:flex;justify-content:space-between;align-items:center;font-size:.83rem}
+.il{color:var(--text2);text-transform:uppercase;letter-spacing:.07em;font-size:.7rem}
+.iv{color:var(--text0);font-weight:600;font-variant-numeric:tabular-nums}
+.id{color:var(--text1);font-size:.83rem;line-height:1.5;border-top:1px solid var(--border);padding-top:.75rem}
+
+.bar-row{margin-bottom:.75rem}
+.bar-hdr{display:flex;justify-content:space-between;font-size:.8rem;margin-bottom:.28rem}
+.bar-n{color:var(--text1)}.bar-s{font-variant-numeric:tabular-nums;font-weight:600}
+.bar-t{background:var(--bg3);border-radius:4px;height:7px;overflow:hidden}
+.bar-f{height:100%;border-radius:4px;transition:width 1.2s cubic-bezier(.34,1,.64,1);width:0}
+
+.cards-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(190px,1fr));gap:.85rem;margin-bottom:1.1rem}
+.det-card{background:var(--bg1);border:1px solid var(--border);border-radius:var(--r);
+  padding:1rem;cursor:pointer;transition:.2s}
+.det-card:hover{border-color:var(--accent);transform:translateY(-2px)}
+.di{font-size:1.45rem;margin-bottom:.35rem;display:block}
+.dn{font-size:.68rem;text-transform:uppercase;letter-spacing:.1em;color:var(--text2);margin-bottom:.22rem}
+.ds{font-size:1.35rem;font-weight:800;font-variant-numeric:tabular-nums}
+.dl{font-size:.71rem;color:var(--text1);margin-top:.15rem}
+.dx{font-size:.74rem;color:var(--text1);line-height:1.5;margin-top:.65rem;
+  padding-top:.65rem;border-top:1px solid var(--border);display:none}
+.det-card.open .dx{display:block}
+
+.forensic-pre{background:var(--bg0);border:1px solid var(--bg3);border-radius:6px;padding:.9rem;
+  font-family:'Courier New',monospace;font-size:.74rem;color:var(--accent);line-height:1.6;
+  white-space:pre-wrap;word-break:break-all;max-height:250px;overflow-y:auto}
+
+.hm-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(190px,1fr));gap:.8rem;margin-top:.7rem}
+.hm-card{background:var(--bg2);border:1px solid var(--border);border-radius:8px;overflow:hidden}
+.hm-lbl{font-size:.68rem;text-transform:uppercase;letter-spacing:.1em;color:var(--text2);padding:.45rem .65rem .15rem}
+.hm-img{width:100%;display:block;border-bottom:1px solid var(--border)}
+.hm-den{font-size:.72rem;color:var(--text2);padding:.3rem .65rem}
+
+/* batch results */
+#batch-results{display:none}
+.bt{width:100%;border-collapse:collapse;font-size:.8rem;min-width:680px}
+.bt th{background:var(--bg3);color:var(--text1);font-size:.69rem;text-transform:uppercase;
+  letter-spacing:.07em;padding:.55rem .75rem;text-align:left;border-bottom:1px solid var(--border)}
+.bt td{padding:.6rem .75rem;border-bottom:1px solid var(--border2);vertical-align:middle}
+.bt tr:hover td{background:var(--bg2)}
+.tbar{height:5px;background:var(--bg3);border-radius:3px;width:70px;display:inline-block;vertical-align:middle;margin-left:.4rem;overflow:hidden}
+.tbf{height:100%;border-radius:3px;transition:width 1s ease}
+.rc{font-size:.68rem;font-weight:700;padding:.18rem .55rem;border-radius:12px;border:1px solid currentColor;white-space:nowrap}
+.berr{color:var(--critical);font-style:italic;font-size:.78rem}
+.bpdf{background:rgba(124,58,237,.15);border:1px solid rgba(124,58,237,.3);color:#a78bfa;
+  padding:.3rem .7rem;border-radius:6px;cursor:pointer;font-size:.76rem;transition:.2s}
+.bpdf:hover{background:rgba(124,58,237,.25)}
+
+::-webkit-scrollbar{width:5px;height:5px}
+::-webkit-scrollbar-track{background:var(--bg0)}
+::-webkit-scrollbar-thumb{background:var(--bg3);border-radius:3px}
+</style>
+</head>
+<body>
+
+<nav>
+  <div class="logo">
+    <svg viewBox="0 0 32 32" fill="none">
+      <polygon points="16,2 30,10 30,22 16,30 2,22 2,10" fill="rgba(0,212,255,.08)" stroke="#00d4ff" stroke-width="1.5"/>
+      <circle cx="16" cy="16" r="5" fill="#00d4ff" opacity=".9"/>
+      <line x1="16" y1="2"  x2="16"  y2="11"   stroke="#00d4ff" stroke-width="1.5" opacity=".5"/>
+      <line x1="16" y1="21" x2="16"  y2="30"   stroke="#00d4ff" stroke-width="1.5" opacity=".5"/>
+      <line x1="2"  y1="10" x2="11"  y2="14.5" stroke="#00d4ff" stroke-width="1.5" opacity=".5"/>
+      <line x1="21" y1="17.5" x2="30" y2="22"  stroke="#00d4ff" stroke-width="1.5" opacity=".5"/>
+      <line x1="30" y1="10" x2="21"  y2="14.5" stroke="#00d4ff" stroke-width="1.5" opacity=".5"/>
+      <line x1="11" y1="17.5" x2="2" y2="22"   stroke="#00d4ff" stroke-width="1.5" opacity=".5"/>
+    </svg>
+    DeepTrace
+  </div>
+  <span class="badge-ps">PS-02 · AI/ML Security</span>
+  <span class="nav-r">v2.0 · Cyberthon'26 · SRM IST</span>
+</nav>
+
+<main>
+
+<!-- UPLOAD -->
+<section id="upload-section">
+  <div class="hero">
+    <h1 class="hero-title">Deepfake Trust &amp; Attribution</h1>
+    <p class="hero-sub">Multi-channel forensic analysis — trust score, risk tier, saliency heatmaps, and PDF report.</p>
+  </div>
+
+  <div class="tab-bar">
+    <button class="tab-btn active" id="tab-file"   onclick="switchTab('file')">📁 File Upload</button>
+    <button class="tab-btn"        id="tab-url"    onclick="switchTab('url')">🔗 URL / Stream</button>
+    <button class="tab-btn"        id="tab-webcam" onclick="switchTab('webcam')">📷 Webcam</button>
+    <button class="tab-btn"        id="tab-batch"  onclick="switchTab('batch')">📦 Batch Compare</button>
+  </div>
+
+  <!-- File tab -->
+  <div class="tab-panel active" id="panel-file">
+    <div id="dropzone" onclick="document.getElementById('file-input').click()">
+      <input type="file" id="file-input" accept="video/*,audio/*">
+      <span class="dz-icon">🔬</span>
+      <div class="dz-text">Drop media file here or click to browse</div>
+      <div class="dz-hint">MP4 · MOV · AVI · MKV · WebM · MP3 · WAV · FLAC · M4A</div>
+    </div>
+  </div>
+
+  <!-- URL tab -->
+  <div class="tab-panel" id="panel-url">
+    <div class="card" style="margin-bottom:0">
+      <div class="card-title">Analyze from URL or Stream</div>
+      <input class="url-input" id="url-input" type="url" placeholder="https://youtube.com/watch?v=... or direct .mp4 link">
+      <div class="url-hint">Supports YouTube · TikTok · Twitter/X · Instagram · Vimeo · direct media URLs &nbsp;|&nbsp; <span style="color:var(--medium)">⚠ Requires yt-dlp on server</span></div>
+      <button class="btn-p" onclick="analyzeUrl()">🔍 Analyze URL</button>
+    </div>
+  </div>
+
+  <!-- Webcam tab -->
+  <div class="tab-panel" id="panel-webcam">
+    <div class="card" style="margin-bottom:0">
+      <div class="card-title">Webcam Capture &amp; Analyze</div>
+      <div class="wc-wrap">
+        <video id="wc-preview" autoplay muted playsinline style="width:100%;max-width:460px;border-radius:var(--r);border:1px solid var(--border);background:var(--bg2);aspect-ratio:16/9;object-fit:cover"></video>
+        <div class="wc-ctrl">
+          <button class="btn-s" id="btn-wc-start"  onclick="startWebcam()">📷 Start Camera</button>
+          <button class="btn-s" id="btn-wc-rec"    onclick="toggleRecord()" disabled>⏺ Record</button>
+          <button class="btn-s" id="btn-wc-analyze" onclick="analyzeWebcam()" disabled>🔍 Analyze Clip</button>
+          <span class="wc-st" id="wc-st">Camera not started</span>
+        </div>
+        <p style="font-size:.76rem;color:var(--text2);text-align:center;max-width:400px">
+          Start camera → Record a clip (max 30s) → Analyze Clip</p>
+      </div>
+    </div>
+  </div>
+
+  <!-- Batch tab -->
+  <div class="tab-panel" id="panel-batch">
+    <div class="card" style="margin-bottom:0">
+      <div class="card-title">Batch Comparison — up to 10 files</div>
+      <div id="batch-dz" onclick="document.getElementById('batch-input').click()">
+        <input type="file" id="batch-input" accept="video/*,audio/*" multiple>
+        <span class="dz-icon" style="font-size:2rem">📦</span>
+        <div class="dz-text">Drop multiple files or click to browse</div>
+        <div class="dz-hint">Results shown in a side-by-side comparison table</div>
+      </div>
+      <div id="batch-queue"></div>
+      <div class="batch-ctrl" id="batch-ctrl" style="display:none">
+        <span style="color:var(--text1);font-size:.83rem" id="batch-count"></span>
+        <div style="display:flex;gap:.5rem">
+          <button class="btn-s" onclick="clearBatch()">✕ Clear</button>
+          <button class="btn-p" onclick="runBatch()" style="margin-top:0">⚡ Analyze All</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div id="error-box"></div>
+</section>
+
+<!-- LOADING -->
+<section id="loading">
+  <div class="spinner"></div>
+  <div class="ld-label" id="ld-label">Running Forensic Pipeline…</div>
+  <div id="steps">
+    <div class="step" id="s0">Frame Extraction (max 30 frames)</div>
+    <div class="step" id="s1">DCT Artifact Analysis &amp; Noise Fingerprint</div>
+    <div class="step" id="s2">Audio Spectral Flatness &amp; Continuity</div>
+    <div class="step" id="s3">Lip-Sync Pearson Correlation</div>
+    <div class="step" id="s4">rPPG Biological Pulse Detection</div>
+    <div class="step" id="s5">Metadata Provenance &amp; Compression Depth</div>
+    <div class="step" id="s6">Saliency Heatmap Generation</div>
+    <div class="step" id="s7">Trust Score Computation</div>
+  </div>
+</section>
+
+<!-- SINGLE RESULTS -->
+<section id="results">
+  <div class="rtop">
+    <button class="btn-r" onclick="resetUI()">← Analyze another</button>
+    <button class="btn-pdf" id="btn-pdf" onclick="downloadPdf()">📄 Export PDF Report</button>
+  </div>
+
+  <div class="gauge-sec">
+    <div class="gauge-wrap">
+      <div class="g-label">Trust Score</div>
+      <div class="g-svg-w">
+        <svg viewBox="0 0 180 100" width="154" height="84" overflow="visible">
+          <path class="g-track" d="M 15 90 A 75 75 0 0 1 165 90" stroke-dasharray="283"/>
+          <path class="g-fill"  id="g-arc" d="M 15 90 A 75 75 0 0 1 165 90"/>
+        </svg>
+        <div class="g-val"><span id="g-num">0</span><span class="g-pct">%</span></div>
+      </div>
+      <div id="risk-badge" class="risk-badge">—</div>
+    </div>
+    <div class="info-p">
+      <div class="ir"><span class="il">File</span><span class="iv" id="r-fn">—</span></div>
+      <div class="ir"><span class="il">Duration</span><span class="iv" id="r-dur">—</span></div>
+      <div class="ir"><span class="il">Frames sampled</span><span class="iv" id="r-fr">—</span></div>
+      <div class="ir"><span class="il">Processing time</span><span class="iv" id="r-t">—</span></div>
+      <div class="ir"><span class="il">Manipulation score</span><span class="iv" id="r-m">—</span></div>
+      <div class="id" id="r-d">—</div>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="card-title">Score Decomposition — Trust = 1 − [V×0.40 + A×0.30 + L×0.10 + (1−P)×0.20]</div>
+    <div id="breakdown-bars"></div>
+  </div>
+
+  <div style="font-size:.68rem;text-transform:uppercase;letter-spacing:.12em;color:var(--text2);margin-bottom:.65rem">
+    Detector Results <small style="text-transform:none;letter-spacing:0;color:var(--text2)">(tap to expand)</small>
+  </div>
+  <div class="cards-grid" id="det-cards"></div>
+
+  <div class="card">
+    <div class="card-title">Forensic Analysis Report</div>
+    <pre class="forensic-pre" id="forensic-pre"></pre>
+  </div>
+
+  <div class="card" id="hm-section" style="display:none">
+    <div class="card-title">Manipulation Saliency Heatmaps <small style="text-transform:none;letter-spacing:0;color:var(--text2)">(red = highest probability)</small></div>
+    <div id="hm-desc" style="color:var(--text1);font-size:.81rem;margin-bottom:.7rem;line-height:1.5"></div>
+    <div class="hm-grid" id="hm-grid"></div>
+  </div>
+</section>
+
+<!-- BATCH RESULTS -->
+<section id="batch-results">
+  <div class="rtop">
+    <button class="btn-r" onclick="resetBatch()">← New batch</button>
+    <button class="bpdf" id="btn-all-pdf" onclick="exportAllPdfs()">📄 Export All PDFs</button>
+  </div>
+  <div class="card">
+    <div class="card-title" id="batch-res-title">Batch Results</div>
+    <div style="overflow-x:auto">
+      <table class="bt" id="batch-tbl">
+        <thead><tr>
+          <th>#</th><th>Filename</th><th>Trust</th><th>Risk</th>
+          <th>Video</th><th>Audio</th><th>Lip</th><th>Prov.</th>
+          <th>Time</th><th>PDF</th>
+        </tr></thead>
+        <tbody id="batch-tbody"></tbody>
+      </table>
+    </div>
+  </div>
+</section>
+
+</main>
+
+<script>
+var _last=null, _batchFiles=[], _batchRes=[], _stepTimer=null;
+var _wcStream=null,_mr=null,_chunks=[],_recTimer=null,_rec=false;
+var STEPS=[200,600,1100,1700,2300,2900,3500,4000];
+var DMETA={
+  video:{icon:'🎞️',name:'Video Analysis',wt:'×0.40'},
+  audio:{icon:'🎙️',name:'Audio Analysis',wt:'×0.30'},
+  lipsync:{icon:'👄',name:'Lip-Sync',wt:'×0.10'},
+  rppg:{icon:'💓',name:'rPPG Pulse',wt:'biological'},
+  provenance:{icon:'🔗',name:'Provenance',wt:'×0.20 inv'},
+};
+
+function switchTab(n){
+  ['file','url','webcam','batch'].forEach(t=>{
+    document.getElementById('tab-'+t).classList.toggle('active',t===n);
+    document.getElementById('panel-'+t).classList.toggle('active',t===n);
+  });
+  showErr('');
+}
+
+function show(n){
+  ['upload-section','loading','results','batch-results'].forEach(id=>{
+    document.getElementById(id).style.display=id===n?'':'none';
+  });
+}
+
+function showErr(m){
+  var b=document.getElementById('error-box');
+  b.style.display=m?'':'none'; b.textContent=m;
+}
+
+function resetUI(){document.getElementById('file-input').value='';document.getElementById('url-input').value='';show('upload-section');}
+
+// File drop
+var dz=document.getElementById('dropzone');
+dz.addEventListener('dragover',function(e){e.preventDefault();dz.classList.add('drag-active')});
+dz.addEventListener('dragleave',function(){dz.classList.remove('drag-active')});
+dz.addEventListener('drop',function(e){e.preventDefault();dz.classList.remove('drag-active');if(e.dataTransfer.files[0])goFile(e.dataTransfer.files[0])});
+document.getElementById('file-input').addEventListener('change',function(){if(this.files[0])goFile(this.files[0])});
+
+function goFile(f){showErr('');show('loading');document.getElementById('ld-label').textContent='Analyzing '+f.name+'…';anim();var fd=new FormData();fd.append('file',f);doAnalyze('/analyze',fd);}
+
+// URL
+function analyzeUrl(){
+  var u=document.getElementById('url-input').value.trim();
+  if(!u){showErr('Please enter a URL.');return;}
+  showErr('');show('loading');document.getElementById('ld-label').textContent='Downloading & analyzing URL…';anim();
+  var fd=new FormData();fd.append('url',u);doAnalyze('/analyze-url',fd);
+}
+
+// Webcam
+function startWebcam(){
+  navigator.mediaDevices.getUserMedia({video:true,audio:true}).then(function(s){
+    _wcStream=s;document.getElementById('wc-preview').srcObject=s;
+    document.getElementById('btn-wc-rec').disabled=false;
+    document.getElementById('wc-st').textContent='Camera ready';
+  }).catch(function(e){showErr('Camera: '+e.message)});
+}
+
+function toggleRecord(){_rec?stopRec():startRec()}
+
+function startRec(){
+  _chunks=[];
+  var mime=MediaRecorder.isTypeSupported('video/webm;codecs=vp9')?'video/webm;codecs=vp9':'video/webm';
+  _mr=new MediaRecorder(_wcStream,{mimeType:mime});
+  _mr.ondataavailable=function(e){if(e.data.size>0)_chunks.push(e.data)};
+  _mr.start(250);_rec=true;
+  var b=document.getElementById('btn-wc-rec');b.textContent='⏹ Stop';b.classList.add('rec');
+  var st=document.getElementById('wc-st');st.textContent='● Recording…';st.className='wc-st on';
+  document.getElementById('btn-wc-analyze').disabled=true;
+  _recTimer=setTimeout(stopRec,30000);
+}
+
+function stopRec(){
+  if(!_mr||_mr.state==='inactive')return;
+  clearTimeout(_recTimer);_mr.stop();_rec=false;
+  var b=document.getElementById('btn-wc-rec');b.textContent='⏺ Record';b.classList.remove('rec');
+  var st=document.getElementById('wc-st');st.textContent='Clip ready';st.className='wc-st';
+  document.getElementById('btn-wc-analyze').disabled=false;
+}
+
+function analyzeWebcam(){
+  if(!_chunks.length){showErr('No recording. Please record a clip first.');return;}
+  var blob=new Blob(_chunks,{type:'video/webm'});
+  showErr('');show('loading');document.getElementById('ld-label').textContent='Analyzing webcam clip…';anim();
+  var fd=new FormData();fd.append('file',blob,'webcam.webm');doAnalyze('/analyze-webcam',fd);
+}
+
+// Batch
+var bdz=document.getElementById('batch-dz');
+bdz.addEventListener('dragover',function(e){e.preventDefault();bdz.classList.add('drag-active')});
+bdz.addEventListener('dragleave',function(){bdz.classList.remove('drag-active')});
+bdz.addEventListener('drop',function(e){e.preventDefault();bdz.classList.remove('drag-active');addBatch(Array.from(e.dataTransfer.files))});
+document.getElementById('batch-input').addEventListener('change',function(){addBatch(Array.from(this.files))});
+
+function addBatch(files){
+  files.forEach(function(f){if(_batchFiles.length<10&&!_batchFiles.find(function(x){return x.name===f.name}))_batchFiles.push(f)});
+  renderBQ();
+}
+
+function renderBQ(){
+  var q=document.getElementById('batch-queue');q.innerHTML='';
+  _batchFiles.forEach(function(f,i){
+    var d=document.createElement('div');d.className='bq-item';
+    d.innerHTML='<span class="bq-name">'+f.name+'</span><span class="bq-size">'+(f.size/1e6).toFixed(1)+' MB</span><button class="bq-rm" onclick="rmBatch('+i+')">✕</button>';
+    q.appendChild(d);
+  });
+  document.getElementById('batch-ctrl').style.display=_batchFiles.length?'':'none';
+  document.getElementById('batch-count').textContent=_batchFiles.length+' file'+((_batchFiles.length!==1)?'s':'')+' queued';
+}
+
+function rmBatch(i){_batchFiles.splice(i,1);renderBQ()}
+function clearBatch(){_batchFiles=[];renderBQ()}
+
+async function runBatch(){
+  if(!_batchFiles.length)return;
+  showErr('');show('loading');
+  document.getElementById('ld-label').textContent='Batch: analyzing '+_batchFiles.length+' files…';
+  anim();
+  var fd=new FormData();
+  _batchFiles.forEach(function(f){fd.append('files',f)});
+  try{
+    var res=await fetch('/analyze-batch',{method:'POST',body:fd});
+    var data=await res.json();
+    if(!res.ok)throw new Error(data.detail||'HTTP '+res.status);
+    clearTimer();doneSteps();
+    _batchRes=data.batch_results;
+    setTimeout(function(){renderBatchRes(data.batch_results)},400);
+  }catch(e){
+    clearTimer();show('upload-section');switchTab('batch');showErr('Batch failed: '+e.message);
+  }
+}
+
+function renderBatchRes(results){
+  show('batch-results');
+  document.getElementById('batch-res-title').textContent='Batch Analysis — '+results.length+' files';
+  var tb=document.getElementById('batch-tbody');tb.innerHTML='';
+  results.forEach(function(r,i){
+    var tr=document.createElement('tr');
+    if(r.error){
+      tr.innerHTML='<td>'+(i+1)+'</td><td>'+r.filename+'</td><td colspan="8"><span class="berr">'+r.error+'</span></td>';
+    }else{
+      var t=r.trust_score,pct=Math.round(t*100),col=rc(r.risk_level);
+      tr.innerHTML='<td>'+(i+1)+'</td>'
+        +'<td style="max-width:150px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="'+r.filename+'">'+r.filename+'</td>'
+        +'<td><span style="color:'+col+';font-weight:700">'+pct+'%</span>'
+        +'<span class="tbar"><span class="tbf" style="width:'+pct+'%;background:'+col+'"></span></span></td>'
+        +'<td><span class="rc" style="color:'+col+'">'+r.risk_level+'</span></td>'
+        +'<td style="color:'+mc(r.detectors.video.score)+'">'+Math.round(r.detectors.video.score*100)+'%</td>'
+        +'<td style="color:'+mc(r.detectors.audio.score)+'">'+Math.round(r.detectors.audio.score*100)+'%</td>'
+        +'<td style="color:'+mc(r.detectors.lipsync.score)+'">'+Math.round(r.detectors.lipsync.score*100)+'%</td>'
+        +'<td style="color:'+mc(1-r.detectors.provenance.score)+'">'+Math.round(r.detectors.provenance.score*100)+'%</td>'
+        +'<td>'+r.processing_time_s+'s</td>'
+        +'<td><button class="bpdf" onclick="dlPdfFor('+i+')">PDF</button></td>';
+    }
+    tb.appendChild(tr);
+  });
+}
+
+function resetBatch(){_batchRes=[];_batchFiles=[];renderBQ();show('upload-section');switchTab('batch')}
+
+async function exportAllPdfs(){
+  var b=document.getElementById('btn-all-pdf');b.disabled=true;b.textContent='⏳…';
+  for(var i=0;i<_batchRes.length;i++){if(!_batchRes[i].error)await dlPdfFor(i);}
+  b.disabled=false;b.textContent='📄 Export All PDFs';
+}
+
+// Core fetch
+async function doAnalyze(ep,fd){
+  try{
+    var res=await fetch(ep,{method:'POST',body:fd});
+    var data=await res.json();
+    if(!res.ok)throw new Error(data.detail||'HTTP '+res.status);
+    clearTimer();doneSteps();
+    _last=data;
+    setTimeout(function(){renderRes(data)},400);
+  }catch(e){
+    clearTimer();show('upload-section');showErr('Analysis failed: '+e.message);
+  }
+}
+
+// PDF
+async function downloadPdf(){if(_last)await dlPdfFrom(_last)}
+async function dlPdfFor(i){if(_batchRes[i]&&!_batchRes[i].error)await dlPdfFrom(_batchRes[i])}
+async function dlPdfFrom(result){
+  var btn=document.getElementById('btn-pdf');
+  if(btn){btn.disabled=true;btn.textContent='⏳ Generating…'}
+  try{
+    var res=await fetch('/report',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(result)});
+    if(!res.ok)throw new Error('HTTP '+res.status);
+    var blob=await res.blob();
+    var url=URL.createObjectURL(blob);
+    var a=document.createElement('a');a.href=url;
+    a.download='DeepTrace_'+(result.filename||'report').replace(/\.[^.]+$/,'')+'.pdf';
+    document.body.appendChild(a);a.click();document.body.removeChild(a);URL.revokeObjectURL(url);
+  }catch(e){alert('PDF failed: '+e.message)}
+  finally{if(btn){btn.disabled=false;btn.textContent='📄 Export PDF Report'}}
+}
+
+// Step animation
+function anim(){
+  for(var i=0;i<8;i++)document.getElementById('s'+i).className='step';
+  var idx=0;
+  function nx(){
+    if(idx<8){
+      if(idx>0)document.getElementById('s'+(idx-1)).className='step done';
+      document.getElementById('s'+idx).className='step active';
+      _stepTimer=setTimeout(nx,STEPS[idx]||600);idx++;
+    }
+  }
+  nx();
+}
+function clearTimer(){if(_stepTimer){clearTimeout(_stepTimer);_stepTimer=null}}
+function doneSteps(){for(var i=0;i<8;i++)document.getElementById('s'+i).className='step done'}
+
+// Render single
+function renderRes(data){
+  show('results');
+  var t=data.trust_score,pct=Math.round(t*100),col=rc(data.risk_level);
+  var arc=document.getElementById('g-arc');
+  arc.style.stroke=col;arc.style.filter='drop-shadow(0 0 8px '+col+')';
+  setTimeout(function(){arc.style.strokeDashoffset=283*(1-t)},50);
+  animN('g-num',0,pct,1200);
+  var badge=document.getElementById('risk-badge');
+  badge.textContent=data.risk_level;badge.style.color=col;
+  badge.style.borderColor=col;badge.style.backgroundColor=col+'18';
+  document.getElementById('r-fn').textContent=data.filename;
+  document.getElementById('r-dur').textContent=data.duration_s+'s';
+  document.getElementById('r-fr').textContent=data.frames_sampled+' frames';
+  document.getElementById('r-t').textContent=data.processing_time_s+'s';
+  document.getElementById('r-m').textContent=(data.manipulation_score*100).toFixed(1)+'%';
+  document.getElementById('r-d').textContent=data.risk_description;
+  renderBars(data.detectors);
+  renderCards(data.detectors);
+  document.getElementById('forensic-pre').textContent=data.forensic_explanation;
+  renderHM(data.heatmaps);
+}
+
+function renderBars(d){
+  var c=document.getElementById('breakdown-bars');c.innerHTML='';
+  [{l:'Video    (×0.40)',v:d.video.score,col:'#38bdf8'},
+   {l:'Audio    (×0.30)',v:d.audio.score,col:'#a78bfa'},
+   {l:'Lip Sync (×0.10)',v:d.lipsync.score,col:'#fb923c'},
+   {l:'Provenance (×0.20 inv)',v:1-d.provenance.score,col:'#34d399'}]
+  .forEach(function(b){
+    var pct=(b.v*100).toFixed(1);
+    var div=document.createElement('div');div.className='bar-row';
+    div.innerHTML='<div class="bar-hdr"><span class="bar-n">'+b.l+'</span><span class="bar-s" style="color:'+b.col+'">'+pct+'%</span></div>'
+      +'<div class="bar-t"><div class="bar-f" style="background:'+b.col+'" data-p="'+b.v*100+'"></div></div>';
+    c.appendChild(div);
+  });
+  setTimeout(function(){c.querySelectorAll('.bar-f').forEach(function(el){el.style.width=Math.min(parseFloat(el.dataset.p),100)+'%'})},100);
+}
+
+function renderCards(detectors){
+  var g=document.getElementById('det-cards');g.innerHTML='';
+  Object.entries(detectors).forEach(function(e){
+    var key=e[0],det=e[1],m=DMETA[key]||{icon:'🔍',name:key,wt:''},s=det.score||0,col=mc(s);
+    var card=document.createElement('div');card.className='det-card';
+    card.innerHTML='<div style="height:3px;background:'+col+';border-radius:4px 4px 0 0;margin:-1rem -1rem .7rem;opacity:.8"></div>'
+      +'<span class="di">'+m.icon+'</span><div class="dn">'+m.name+' <small style="color:var(--text2)">'+m.wt+'</small></div>'
+      +'<div class="ds" style="color:'+col+'">'+Math.round(s*100)+'%</div>'
+      +'<div class="dl">'+mlbl(s)+'</div>'
+      +'<div class="dx">'+(det.explanation||'')+'</div>';
+    card.addEventListener('click',function(){card.classList.toggle('open')});
+    g.appendChild(card);
+  });
+}
+
+function renderHM(h){
+  var sec=document.getElementById('hm-section'),g=document.getElementById('hm-grid');
+  g.innerHTML='';
+  if(!h||(!h.summary&&!h.key_frames?.length)){sec.style.display='none';return}
+  sec.style.display='';
+  document.getElementById('hm-desc').textContent=h.hotspot_description||'';
+  function mkCard(lbl,b64,den){
+    var c=document.createElement('div');c.className='hm-card';
+    var dp=den!=null?'<div class="hm-den">Activation: <span style="color:'+mc(den)+';font-weight:700">'+(den*100).toFixed(1)+'%</span></div>':'';
+    c.innerHTML='<div class="hm-lbl">'+lbl+'</div><img class="hm-img" src="data:image/png;base64,'+b64+'" alt="'+lbl+'">'+dp;
+    return c;
+  }
+  if(h.summary)g.appendChild(mkCard('Summary',h.summary,null));
+  (h.key_frames||[]).forEach(function(kf){if(kf.heatmap_b64)g.appendChild(mkCard('Frame #'+kf.index,kf.heatmap_b64,kf.manipulation_density))});
+}
+
+// Helpers
+function rc(l){return{LOW:'#22c55e',MEDIUM:'#f59e0b',HIGH:'#f97316',CRITICAL:'#ef4444'}[l]||'#94a3b8'}
+function mc(s){if(s<.3)return'#22c55e';if(s<.5)return'#f59e0b';if(s<.7)return'#f97316';return'#ef4444'}
+function mlbl(s){if(s<.3)return'✓ Low signal';if(s<.5)return'⚠ Moderate';if(s<.7)return'⚠ High';return'✗ Strong signal'}
+function animN(id,from,to,dur){
+  var el=document.getElementById(id),step=(to-from)/(dur/16),cur=from;
+  function tk(){cur=Math.min(cur+step,to);el.textContent=Math.round(cur);if(cur<to)requestAnimationFrame(tk)}
+  requestAnimationFrame(tk);
+}
+</script>
+</body>
+</html>
