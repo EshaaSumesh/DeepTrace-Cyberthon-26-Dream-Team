@@ -1,6 +1,6 @@
 # DeepTrace - Agentic AI Deepfake Trust Analysis
 
-![DeepTrace Demo](./artifacts/deeptrace_demo.webp)
+![DeepTrace Demo](./fake.mp4)
 
 DeepTrace is an elite, highly rigorous forensic AI system specialized in deepfake detection and generative model fingerprint attribution. It uses a multi-agent orchestrated approach powered by the Gemini 3 Flash Preview API to analyze video and audio across various dimensions, providing a comprehensive trust score and detailed forensic evidence.
 
